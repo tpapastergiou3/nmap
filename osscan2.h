@@ -443,7 +443,7 @@ class HostOsScan {
   void sendNextProbe(HostOsScanStats *hss);
 
   /* Process one response. If the response is useful, return true. */
-  bool processResp(HostOsScanStats *hss, struct ip *ip, unsigned int len, struct timeval *rcvdtime);
+  bool processResp(HostOsScanStats *hss, struct ip *ip, unsigned int len, struct timeval *rcvdtime, pcap_t * pd);
 
   /* Make up the fingerprint. */
   void makeFP(HostOsScanStats *hss);

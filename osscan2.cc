@@ -148,6 +148,7 @@
 
 #include <list>
 #include <math.h>
+#include <pcap.h>
 
 extern NmapOps o;
 #ifdef WIN32
@@ -667,7 +668,7 @@ static void doSeqTests(OsScanInfo *OSI, HostOsScan *HOS) {
         continue; /* Not from one of our targets. */
       setTargetMACIfAvailable(hsi->target, &linkhdr, &ss, 0);
 
-      goodResponse = HOS->processResp(hsi->hss, ip, bytes, &rcvdtime);
+      goodResponse = HOS->processResp(hsi->hss, ip, bytes, &rcvdtime, HOS->pd);
 
       if (goodResponse)
         expectReplies--;
@@ -714,7 +715,6 @@ static void doTUITests(OsScanInfo *OSI, HostOsScan *HOS) {
   struct sockaddr_storage ss;
   unsigned int bytes;
   struct timeval rcvdtime;
-
   struct timeval stime, tmptv;
 
   bool timedout = false;
@@ -838,7 +838,7 @@ static void doTUITests(OsScanInfo *OSI, HostOsScan *HOS) {
         continue; /* Not from one of our targets. */
       setTargetMACIfAvailable(hsi->target, &linkhdr, &ss, 0);
 
-      goodResponse = HOS->processResp(hsi->hss, ip, bytes, &rcvdtime);
+      goodResponse = HOS->processResp(hsi->hss, ip, bytes, &rcvdtime, HOS->pd);
 
       if (goodResponse)
         expectReplies--;
@@ -1954,7 +1954,7 @@ void HostOsScan::sendTUdpProbe(HostOsScanStats *hss, int probeNo) {
 }
 
 
-bool HostOsScan::processResp(HostOsScanStats *hss, struct ip *ip, unsigned int len, struct timeval *rcvdtime) {
+bool HostOsScan::processResp(HostOsScanStats *hss, struct ip *ip, unsigned int len, struct timeval *rcvdtime, pcap_t * pd = NULL) {
   struct ip *ip2;
   struct tcp_hdr *tcp;
   struct icmp *icmp;
@@ -1962,6 +1962,8 @@ bool HostOsScan::processResp(HostOsScanStats *hss, struct ip *ip, unsigned int l
   bool isPktUseful = false;
   std::list<OFProbe *>::iterator probeI;
   OFProbe *probe;
+  unsigned int original_length = len;
+  unsigned int i;
 
   if (len < 20 || len < (4 * ip->ip_hl) + 4U)
     return false;
@@ -2078,6 +2080,23 @@ bool HostOsScan::processResp(HostOsScanStats *hss, struct ip *ip, unsigned int l
     if (o.debugging > 1) {
       log_write(LOG_PLAIN, "Got a valid response for probe (type: %s subid: %d) from %s\n",
             probe->typestr(), probe->subid, hss->target->targetipstr());
+      log_write(LOG_PLAIN, "Got Packet content: ");
+      for (i=0; i<original_length; i++) {
+   	log_write(LOG_PLAIN, "%02x", ((char *) ip)[i]);
+	if (i < original_length)
+		log_write(LOG_PLAIN,",");
+      }
+      log_write(LOG_PLAIN, "\n");
+      char filename[256];
+      snprintf(filename, sizeof(filename), "/home/thomas/nmap_nprint/probe_%s_%d.pcap", probe->typestr(), probe->subid);
+      pcap_dumper_t * aaa  = pcap_dump_open_append(pd, filename);
+      struct pcap_pkthdr * head = (struct pcap_pkthdr *) malloc(sizeof(struct pcap_pkthdr));
+      head->ts = *rcvdtime;
+      head->caplen = original_length;
+      head->len = original_length;
+
+      pcap_dump((u_char *) aaa, head, (u_char *) ip);
+      pcap_dump_close(aaa);
     }
 
     /* delete the probe. */

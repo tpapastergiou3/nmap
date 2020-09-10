@@ -423,7 +423,10 @@ bool getNextHopMAC(const char *iface, const u8 *srcmac, const struct sockaddr_st
    lnkinfo->header will be filled with the appropriate values. */
 const u8 *readipv4_pcap(pcap_t *pd, unsigned int *len, long to_usec,
                     struct timeval *rcvdtime, struct link_header *linknfo, bool validate);
-
+const u8 *my_readipv4_pcap(pcap_t *pd, unsigned int *len, long to_usec,
+                    struct timeval *rcvdtime, struct link_header *linknfo, bool validate, struct pcap_pkthdr * head);
+const u8 *my_readip_pcap(pcap_t *pd, unsigned int *len, long to_usec,
+                  struct timeval *rcvdtime, struct link_header *linknfo, bool validate, struct pcap_pkthdr * head);
 const u8 *readip_pcap(pcap_t *pd, unsigned int *len, long to_usec,
                   struct timeval *rcvdtime, struct link_header *linknfo, bool validate);
 

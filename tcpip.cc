@@ -1556,6 +1556,26 @@ const u8 *readipv4_pcap(pcap_t *pd, unsigned int *len, long to_usec,
   return buf;
 }
 
+const u8 *my_readipv4_pcap(pcap_t *pd, unsigned int *len, long to_usec,
+                    struct timeval *rcvdtime, struct link_header *linknfo,
+                    bool validate, struct pcap_pkthdr * head) {
+  const u8 *buf;
+
+  buf = my_readip_pcap(pd, len, to_usec, rcvdtime, linknfo, validate, head);
+  if (buf != NULL) {
+    const struct ip *ip;
+
+    ip = (struct ip *) buf;
+    if (*len < 1 || ip->ip_v != 4)
+      return NULL;
+  }
+
+  return buf;
+}
+
+
+
+
 static bool accept_any (const unsigned char *p, const struct pcap_pkthdr *h, int datalink, size_t offset) {
   return true;
 }
@@ -1578,6 +1598,60 @@ static bool accept_ip (const unsigned char *p, const struct pcap_pkthdr *h, int 
 
   return true;
 }
+
+
+const u8 *my_readip_pcap(pcap_t *pd, unsigned int *len, long to_usec,
+                  struct timeval *rcvdtime, struct link_header *linknfo, bool validate, struct pcap_pkthdr * head) {
+  int datalink;
+  size_t offset = 0;
+  const u8 *p;
+  int got_one = 0;
+
+  if (linknfo) {
+    memset(linknfo, 0, sizeof(*linknfo));
+  }
+
+  if (validate) {
+    got_one = read_reply_pcap(pd, to_usec, accept_ip, &p, &head, rcvdtime, &datalink, &offset);
+  }
+  else {
+    got_one = read_reply_pcap(pd, to_usec, accept_any, &p, &head, rcvdtime, &datalink, &offset);
+  }
+
+  if (!got_one) {
+    *len = 0;
+    return NULL;
+  }
+
+  *len = head->caplen - offset;
+  p += offset;
+
+  if (validate) {
+    if (!validatepkt(p, len)) {
+      *len = 0;
+      return NULL;
+    }
+  }
+  if (offset && linknfo) {
+    linknfo->datalinktype = datalink;
+    linknfo->headerlen = offset;
+    assert(offset <= MAX_LINK_HEADERSZ);
+    memcpy(linknfo->header, p - offset, MIN(sizeof(linknfo->header), offset));
+  }
+  if (rcvdtime)
+    PacketTrace::trace(PacketTrace::RCVD, (u8 *) p, *len,
+        rcvdtime);
+  else
+    PacketTrace::trace(PacketTrace::RCVD, (u8 *) p, *len);
+
+  *len = head->caplen - offset;
+  return p;
+}
+
+
+
+
+
 
 const u8 *readip_pcap(pcap_t *pd, unsigned int *len, long to_usec,
                   struct timeval *rcvdtime, struct link_header *linknfo, bool validate) {
